@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KanbanFlow Simulation Game</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Global Styles & Resets */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f2f5f9; /* Light gray background from mockup */
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+            overflow-x: auto; /* Allow horizontal scrolling if content overflows */
+            position: relative; /* Needed for absolute positioning of test mode button */
+        }
+
+        /* Main Game Container - to control overall width */
+        #gameWrapper {
+            width: 100%; /* Allow to take full width */
+            /* Removed max-width to let content fill more space on wide screens */
+            padding: 20px; /* Overall padding */
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 20px; /* Space between main sections */
+        }
+
+
+        /* --- Top Header Area: Title, Description, Stats, Buttons --- */
+        #mainHeader {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #mainHeader h1 {
+            font-size: 2.8em; /* Larger title */
+            color: #333;
+            margin-bottom: 5px;
+            font-weight: 700;
+        }
+
+        #mainHeader p {
+            font-size: 1.1em;
+            color: #666;
+            margin-bottom: 25px;
+            max-width: 800px; /* Constrain description width */
+        }
+
+        #dashboardHeader {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #ffffff;
+            padding: 15px 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        }
+
+        /* Game stats (Day, Profit) */
+        #gameStats {
+            display: flex;
+            gap: 30px;
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #333;
+        }
+
+        #gameStats span {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #gameStats span i {
+            color: #007bff; /* Icon color */
+        }
+
+
+        /* Resources container (available resources) */
+        .resources-container {
+            display: flex;
+            flex-wrap: wrap; /* Allow wrapping */
+            gap: 12px; /* Slightly more space */
+            padding: 15px;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08); /* Consistent shadow */
+            align-items: center;
+            justify-content: flex-start; /* Align left */
+            width: 100%;
+            min-height: 60px;
+        }
+
+        /* Individual resource styling */
+        .resource {
+            padding: 8px 12px; /* Adjusted padding */
+            border-radius: 20px; /* More rounded, pill-like */
+            cursor: grab;
+            font-weight: 600;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out, opacity 0.2s;
+            opacity: 1;
+            border: 1px solid transparent; /* Default transparent border */
+        }
+
+        .resource.dragging-resource {
+            opacity: 0.6;
+            transform: scale(0.95);
+        }
+
+        .resource.allocated {
+            opacity: 0.8;
+            cursor: default; /* Change cursor when allocated */
+            pointer-events: none; /* Prevent direct dragging when allocated to a card */
+        }
+        .resource.allocated:active {
+             transform: none; /* No scale transform when allocated */
+        }
+
+        .resource:active:not(.allocated) {
+            cursor: grabbing;
+            transform: scale(1.03);
+            box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+        }
+
+        .resource i {
+            font-size: 1.2em; /* Slightly larger icon size */
+        }
+
+        /* Specific resource colors (more muted) */
+        .resource[data-resource-type="analyst"] {
+            background-color: #f7e6e9; /* Light Pink */
+            color: #d32f2f; /* Dark Red */
+            border-color: #ef9a9a;
+        }
+        .resource[data-resource-type="developer"] {
+            background-color: #e0f2f7; /* Light Cyan */
+            color: #0288d1; /* Dark Blue */
+            border-color: #81d4fa;
+        }
+        .resource[data-resource-type="tester"] {
+            background-color: #e8f5e9; /* Light Greenish */
+            color: #388e3c; /* Dark Green */
+            border-color: #a5d6a7;
+        }
+
+        /* Main container for the Kanban groups */
+        .kanban-container {
+            display: flex;
+            flex-wrap: nowrap; /* Keep all groups in a single line */
+            gap: 20px; /* Space between Kanban groups */
+            width: 100%;
+            /* Removed justify-content: center to let flex-grow distribute space */
+        }
+
+        /* Styling for the Kanban group containers (Customer, CTO, Delivery, Platforms) */
+        .kanban-group {
+            background-color: #fcfcfc; /* Very light background for groups */
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+            padding: 15px; /* Padding inside the group */
+            display: flex;
+            flex-direction: column;
+            gap: 15px; /* Space between group header and columns */
+            flex-grow: 1; /* Allow groups to grow to fill available space */
+            flex-basis: 0; /* Important for flex-grow to work evenly */
+            min-width: 485px; /* Ensure it can hold two columns side-by-side */
+            transition: box-shadow 0.2s ease-in-out;
+            flex-shrink: 0; /* Prevent shrinking too much */
+        }
+        .kanban-group:hover {
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
+        }
+
+        .kanban-group-header {
+            font-size: 1.6em;
+            font-weight: 700;
+            color: #444;
+            text-align: center;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #eee; /* More prominent separator */
+            margin-bottom: 5px;
+        }
+
+        .kanban-group-columns {
+            display: flex;
+            gap: 15px; /* Space between columns within a group */
+            flex-wrap: nowrap; /* Keep columns within a group in a line */
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+
+        /* Styling for each Kanban column */
+        .kanban-column {
+            background-color: #fdfdfd; /* Very light column background */
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); /* Lighter shadow for columns */
+            padding: 15px;
+            flex: 1;
+            min-width: 220px; /* Adjusted min-width for columns */
+            max-width: 280px; /* Adjusted max-width for columns */
+            display: flex;
+            flex-direction: column;
+            gap: 12px; /* Space between cards */
+            min-height: 280px; /* Adjusted min-height for visual appeal */
+            transition: background-color 0.2s ease-in-out, border 0.2s ease-in-out;
+        }
+
+        /* Specific style for the Backlog column */
+        #backlog {
+            background-color: #fff9e6; /* Softer yellow */
+            border: 1px solid #ffe0b2;
+        }
+
+        /* Specific styles for Analysis buckets (Red) */
+        #analyzed-in-progress, #analyzed-done {
+            background-color: #ffe6e9; /* Softer red */
+            border: 1px solid #ffcdd2;
+        }
+
+        /* Specific styles for Development buckets (Blue) */
+        #developed-in-progress, #developed-done {
+            background-color: #e6f7ff; /* Softer blue */
+            border: 1px solid #bbdefb;
+        }
+
+        /* Specific style for Testing bucket (Green) */
+        #testing {
+            background-color: #e6faed; /* Softer green */
+            border: 1px solid #c8e6c9;
+        }
+        #deployed {
+            background-color: #f7f9fc; /* Very light gray for deployed */
+            border: 1px solid #e0e0e0;
+        }
+
+
+        /* Column header styling */
+        .column-header {
+            font-size: 1.1em;
+            font-weight: 700;
+            color: #555;
+            margin-bottom: 10px;
+            padding-bottom: 5px; /* Add some padding below header text */
+            border-bottom: 1px solid #eee; /* Light separator */
+            display: flex;
+            align-items: center;
+            justify-content: space-between; /* Push title/icon to left, count to right */
+        }
+
+        .column-header .header-content {
+            display: flex;
+            align-items: center;
+            gap: 8px; /* Space between icon and text */
+        }
+
+        .column-header i {
+            font-size: 1.3em;
+            color: #666;
+        }
+
+        /* For columns without WIP count, center the content */
+        .kanban-column:not(:has(.wip-count)) .column-header {
+            justify-content: center;
+        }
+        .kanban-column:not(:has(.wip-count)) .column-header .header-content {
+            width: 100%; /* Allow header content to center itself */
+            justify-content: center; /* Center content within its span */
+        }
+        /* Hide WIP count span if not present for a column */
+        .kanban-column:not(:has(.wip-count)) .wip-count {
+            display: none;
+        }
+
+
+        /* Styling for individual user story cards */
+        .kanban-card {
+            background-color: #ffffff; /* White background for cards */
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 12px; /* Slightly more padding */
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+            cursor: grab;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            word-wrap: break-word;
+            display: flex;
+            flex-direction: column;
+            position: relative; /* For price tag positioning */
+            min-height: 80px; /* Ensure some minimum height */
+        }
+
+        .kanban-card:active {
+            cursor: grabbing;
+            transform: translateY(-2px); /* Slight lift */
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .kanban-card .story-description {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+            font-size: 1em; /* Standard font size */
+            line-height: 1.3;
+        }
+
+        /* Story Price Tag */
+        .story-price-tag {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background-color: #d4edda; /* Light green for price */
+            color: #28a745; /* Darker green text */
+            padding: 4px 8px;
+            border-radius: 15px;
+            font-size: 0.75em;
+            font-weight: bold;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .kanban-card .story-details {
+            font-size: 0.85em; /* Slightly larger font size */
+            color: #666;
+            line-height: 1.4;
+            margin-top: auto; /* Push details to bottom if card grows */
+        }
+
+        /* Highlighted effort styling */
+        .story-details .highlight-effort {
+            font-weight: 700;
+            color: #007bff; /* Blue highlight */
+            background-color: #e6f7ff; /* Light blue background for highlight */
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+
+        /* Deployed story styling - hide effort details */
+        .kanban-card.deployed-story .story-details .effort-line {
+            display: none; /* Hide effort lines for deployed stories */
+        }
+        .kanban-card.deployed-story .story-details .days-in-prioritized {
+            display: none; /* Hide for deployed */
+        }
+
+
+        .allocated-resources-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px; /* Reduced gap */
+            margin-top: 10px; /* More space from details */
+            padding-top: 8px;
+            border-top: 1px dashed #e0e0e0; /* Lighter dashed border */
+        }
+
+        .allocated-resources-container .resource {
+            padding: 4px 8px; /* Compact padding */
+            font-size: 0.7em; /* Smaller font */
+            cursor: default;
+            box-shadow: none;
+            opacity: 1;
+            transition: none;
+            border-radius: 15px; /* More rounded */
+        }
+
+        .allocated-resources-container .resource i {
+             font-size: 0.9em; /* Smaller icon */
+        }
+
+        /* New styling for prioritized stories based on readiness */
+        .kanban-card.prioritized-ready {
+            border: 2px solid #4CAF50; /* Green border when ready to move */
+        }
+
+        .kanban-card.prioritized-not-ready {
+            border: 2px solid #f44336; /* Red border when not ready to move */
+        }
+
+
+        /* Drag and drop feedback for cards as drop targets */
+        .kanban-card.drag-over-resource {
+            border: 2px dashed #007bff;
+            background-color: #e3f2fd;
+        }
+
+        /* Styling for buttons */
+        .button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out, box-shadow 0.2s ease-in-out;
+            box-shadow: 0 3px 6px rgba(0, 123, 255, 0.25);
+        }
+
+        .button:hover {
+            background-color: #0056b3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 10px rgba(0, 123, 255, 0.35);
+        }
+
+        .button:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 3px rgba(0, 123, 255, 0.2);
+        }
+
+        .button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
+        /* Drag and drop feedback for columns */
+        .kanban-column.drag-over {
+            background-color: #e0ffe0;
+            border: 2px dashed #4CAF50;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 1024px) {
+            #dashboardHeader {
+                flex-direction: column;
+                gap: 15px;
+                padding: 15px;
+            }
+            .kanban-container {
+                flex-wrap: wrap; /* Allow groups to wrap again for better usability on smaller screens */
+            }
+            .kanban-group {
+                flex-basis: 95%; /* Make them fill almost full width, so they will stack one per row */
+                max-width: 600px; /* Limit max width for stacked groups */
+                min-width: 300px; /* Revert to a more flexible min-width */
+            }
+            .kanban-group-columns {
+                flex-direction: column; /* Columns within groups still stack vertically */
+                align-items: center;
+            }
+            .kanban-column {
+                width: 90%;
+                max-width: 400px;
+            }
+        }
+        @media (max-width: 600px) {
+            #mainHeader h1 {
+                font-size: 2em;
+            }
+            #mainHeader p {
+                font-size: 0.9em;
+            }
+            #gameStats {
+                font-size: 1em;
+                gap: 15px;
+            }
+            .button {
+                padding: 8px 15px;
+                font-size: 0.8em;
+            }
+            .kanban-group {
+                padding: 10px;
+            }
+            .kanban-column {
+                padding: 10px;
+            }
+            .kanban-card {
+                padding: 10px;
+            }
+            .story-price-tag {
+                top: 5px;
+                right: 5px;
+                padding: 3px 6px;
+                font-size: 0.7em;
+            }
+        }
+
+
+        /* --- Test Mode Button Styling --- */
+        #testModeContainer {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 120px; /* Area to hover over */
+            height: 40px; /* Area to hover over */
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            overflow: hidden; /* Hide content outside its bounds */
+            z-index: 100; /* Ensure it's on top */
+        }
+
+        #testModeButton {
+            background-color: #6a1b9a; /* Deep Purple */
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 12px; /* Slightly smaller padding than main buttons */
+            font-size: 0.85em;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out, background-color 0.2s;
+            transform: translateX(100%); /* Start hidden off-screen to the right */
+            opacity: 0;
+            white-space: nowrap; /* Prevent button text from wrapping */
+        }
+
+        #testModeContainer:hover #testModeButton {
+            transform: translateX(0); /* Slide in on hover */
+            opacity: 1;
+        }
+
+        #testModeButton.active {
+            background-color: #4CAF50; /* Green when active */
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.5); /* Glowing effect */
+        }
+
+        #testModeButton:hover {
+            background-color: #4a148c; /* Darker purple on hover */
+        }
+
+        #testModeButton.active:hover {
+            background-color: #45a049; /* Darker green on hover when active */
+        }
+
+    </style>
+</head>
+<body>
+    <div id="gameWrapper">
+        <header id="mainHeader">
+            <h1>KanbanFlow</h1>
+            <p>Manage your software pipeline. Deploy profitable user stories before Day 35 to maximize profit. Drag stories between columns and assign resources to tasks.</p>
+            <div id="dashboardHeader">
+                <div id="gameStats">
+                    <span id="dayCounterDisplay"><i class="far fa-calendar-alt"></i> Day: 1 / 35</span>
+                    <span id="profitDisplay"><i class="fas fa-dollar-sign"></i> Profit: $0</span>
+                </div>
+                <button class="button" id="completeRoundButton">Complete Round</button>
+            </div>
+        </header>
+
+        <div class="resources-container" id="waitingResources">
+            <h2>Available Resources (<span id="availableResourceCount">9</span>)</h2>
+        </div>
+
+        <div class="kanban-container">
+            <div class="kanban-group" id="customer-group">
+                <div class="kanban-group-header">Customer</div>
+                <div class="kanban-group-columns">
+                    <div class="kanban-column" id="backlog">
+                        <div class="column-header">
+                            <span class="header-content">Backlog <i class="fas fa-archive"></i></span>
+                            <span class="wip-count" data-limit="999"></span> <!-- No explicit limit for Backlog, using a large number -->
+                        </div>
+                    </div>
+                    <div class="kanban-column" id="prioritized">
+                        <div class="column-header">
+                            <span class="header-content">Prioritized <i class="fas fa-list-ol"></i></span>
+                            <span class="wip-count" data-limit="3">0/3</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="kanban-group" id="cto-group">
+                <div class="kanban-group-header">CTO</div>
+                <div class="kanban-group-columns">
+                    <div class="kanban-column" id="analyzed-in-progress">
+                        <div class="column-header">
+                            <span class="header-content">Analysis (In Progress) <i class="fas fa-spinner"></i></span>
+                            <span class="wip-count" data-limit="4">0/4</span>
+                        </div>
+                    </div>
+                    <div class="kanban-column" id="analyzed-done">
+                        <div class="column-header">
+                            <span class="header-content">Analysis (Done) <i class="fas fa-check-double"></i></span>
+                            <span class="wip-count" data-limit="999"></span> <!-- No explicit limit, using a large number -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="kanban-group" id="delivery-group">
+                <div class="kanban-group-header">Delivery</div>
+                <div class="kanban-group-columns">
+                    <div class="kanban-column" id="developed-in-progress">
+                        <div class="column-header">
+                            <span class="header-content">Development (In Progress) <i class="fas fa-cogs"></i></span>
+                            <span class="wip-count" data-limit="3">0/3</span>
+                        </div>
+                    </div>
+                    <div class="kanban-column" id="developed-done">
+                        <div class="column-header">
+                            <span class="header-content">Development (Done) <i class="fas fa-code-branch"></i></span>
+                            <span class="wip-count" data-limit="999"></span> <!-- No explicit limit, using a large number -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="kanban-group" id="platforms-services-group">
+                <div class="kanban-group-header">Platforms and Services</div>
+                <div class="kanban-group-columns">
+                    <div class="kanban-column" id="testing">
+                        <div class="column-header">
+                            <span class="header-content">Testing <i class="fas fa-check-circle"></i></span>
+                            <span class="wip-count" data-limit="3">0/3</span>
+                        </div>
+                    </div>
+                    <div class="kanban-column" id="deployed">
+                        <div class="column-header">
+                            <span class="header-content">Deployed <i class="fas fa-rocket"></i></span>
+                            <span class="wip-count" data-limit="999"></span> <!-- No explicit limit, using a large number -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test Mode Button Container -->
+    <div id="testModeContainer">
+        <button id="testModeButton">Test Mode: OFF</button>
+    </div>
+
+    <!-- Link to the external JavaScript file -->
+    <script type="module" src="./game.js"></script>
+</body>
+</html>
