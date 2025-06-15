@@ -14,6 +14,8 @@ const completeRoundButton = document.getElementById('completeRoundButton');
 const waitingResourcesContainer = document.getElementById('waitingResources');
 const testModeButton = document.getElementById('testModeButton'); // New: Test Mode button
 
+//some spare
+
 // --- Helper Functions ---
 // Utility function, kept global as it's a pure function and generally useful.
 function getRandomInt(min, max) {
